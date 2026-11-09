@@ -1,4 +1,3 @@
-import InstallerPlanDownload from './InstallerPlanDownload'
 import QuotationTotals from './QuotationTotals'
 import { quotationEstimate, QUOTATION_EXCLUSIONS } from './quotationEstimate'
 import { ChoiceField, Field } from './SettingControls'
@@ -18,11 +17,7 @@ export default function CsvExport({plan,settings,prices,onDownload}:{plan:Plan;s
   const columns=pricing?['Component','Quantity','Unit','Unit rate EUR','Line total EUR','Status']:report.headers
   const indices=columns.map(q=>report.headers.indexOf(q)),previewRows=(pricing?report.rows.filter(q=>q[0]==='Item'):report.rows).slice(0,8)
   const currency=new Intl.NumberFormat('en-IE',{style:'currency',currency:'EUR'}),rateCurrency=new Intl.NumberFormat('en-IE',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:4}),number=new Intl.NumberFormat('en-IE',{maximumFractionDigits:2})
-  return <section className="csv-export" aria-label="PDF downloads and CSV reports">
-    <div className="pdf-downloads" aria-label="PDF downloads">
-      <div className="pdf-download-card"><span className="download-format" aria-hidden="true">PDF</span><h3>Installation plan</h3><p>Measured drawing, colour-coded 3D supports and installation references.</p><InstallerPlanDownload plan={plan} settings={settings}/></div>
-    </div>
-    <div className="csv-report-heading"><h3>CSV reports</h3><p>Choose a materials report or cutting list for your spreadsheet.</p></div>
+  return <section className="csv-export" aria-label="CSV downloads">
     <div className="csv-export-controls">
       <Field label="CSV report"><select value={kind} onChange={e=>setKind(e.target.value as CsvKind)}>{CSV_REPORTS.map(q=><option key={q.id} value={q.id}>{q.label}</option>)}</select></Field>
       <button className="button secondary" disabled={!!report.unavailable||!report.rows.length} onClick={()=>onDownload(`betterplan-${kind}.csv`,serializeCsv(report,delimiter))}>↓ Download CSV</button>

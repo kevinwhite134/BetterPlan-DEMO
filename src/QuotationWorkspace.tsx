@@ -7,6 +7,7 @@ import { quotationEstimate } from './quotationEstimate'
 import QuotationSettings from './QuotationSettings'
 import QuotationPreview from './QuotationPreview'
 import ReviewFiles from './ReviewFiles'
+import InstallerPlanDownload from './InstallerPlanDownload'
 import './Quotation.css'
 
 const STEPS=[{id:'customer',name:'Customer'},{id:'project',name:'Project'},{id:'pricing',name:'Pricing'},{id:'preview',name:'Preview'}] as const
@@ -42,7 +43,14 @@ export default function QuotationWorkspace(p:Props){
   }
   const completed=[!!q.customerName?.trim(),!!p.plan,!!quote?.complete&&quote.vatRate!==null,false]
   return <main className="quotation-studio" aria-label="Quotation">
-    <header className="quote-studio-header"><h1>Quotation</h1><div className="quote-studio-actions"><button type="button" className="button secondary" disabled={!canExport||busy} onClick={()=>exportPdf(true)}>{busy?'Preparing PDF…':'Preview PDF'}</button><button type="button" className="button primary" disabled={!canExport||busy} onClick={()=>exportPdf(false)}>Download PDF</button></div></header>
+    <header className="quote-studio-header">
+      <h1>Quotation</h1>
+      <div className="quote-studio-actions">
+        <InstallerPlanDownload plan={p.plan} settings={p.settings} pending={p.pending}/>
+        <button type="button" className="button secondary" disabled={!canExport||busy} onClick={()=>exportPdf(true)}>{busy?'Preparing PDF…':'Preview PDF'}</button>
+        <button type="button" className="button secondary" disabled={!canExport||busy} onClick={()=>exportPdf(false)}>Download Quotation</button>
+      </div>
+    </header>
     <nav className="quote-stepper" role="tablist" aria-label="Quotation sections">{STEPS.map((s,i)=><button type="button" role="tab" aria-label={s.name} id={`quote-tab-${s.id}`} aria-selected={step===s.id} aria-controls={`quote-panel-${s.id}`} tabIndex={step===s.id?0:-1} key={s.id} onClick={()=>go(s.id)} onKeyDown={e=>tabKeys(e,i)}><span className={completed[i]?'is-complete':''} aria-hidden="true">{completed[i]?'✓':i+1}</span><b>{s.name}</b></button>)}</nav>
     {error?<p className="quote-inline-error" role="alert">{error}</p>:null}
     {validation?<p className="quote-inline-error" role="alert">{validation}</p>:null}
@@ -57,6 +65,6 @@ export default function QuotationWorkspace(p:Props){
         {quote&&!(showPdf&&currentPdf)&&(!quote.complete||quote.vatRate===null)?<div className="quote-readiness"><p>{!quote.complete?'Prices or quantities missing.':'VAT rate required.'}</p><button type="button" className="text-button" onClick={()=>go('pricing')}>Review pricing</button></div>:null}
       </aside>
     </div>
-    {step==='preview'?<details className="quote-technical"><summary>Installation files &amp; technical checks</summary><ReviewFiles plan={p.plan} settings={p.settings} prices={p.prices} pending={p.pending} onDownload={p.onDownload}/>{p.checks}</details>:null}
+    {step==='preview'?<details className="quote-technical"><summary>CSV reports &amp; technical checks</summary><ReviewFiles plan={p.plan} settings={p.settings} prices={p.prices} pending={p.pending} onDownload={p.onDownload}/>{p.checks}</details>:null}
   </main>
 }
