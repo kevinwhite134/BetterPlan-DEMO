@@ -13,6 +13,12 @@ export const dimensionText=(n:number)=>String(Math.round(n*10)/10)
 export const planId=(prefix:string,index:number)=>`${prefix}-${String(index+1).padStart(prefix==='C'?2:4,'0')}`
 const unique=(ns:number[])=>[...new Set(ns.map(n=>Math.round(n*10000)/10000))].sort((a,b)=>a-b)
 
+export function designReference(s:Settings){
+  let hash=2166136261
+  for(const c of JSON.stringify({...s,quotation:undefined}))hash=Math.imul(hash^c.charCodeAt(0),16777619)>>>0
+  return `BD-${hash.toString(16).toUpperCase().padStart(8,'0')}`
+}
+
 export function installerPlan(plan:Plan,s:Settings){
   const physical=(p:Point)=>mm(s.direction==='vertical'?{x:p.y,y:p.x}:p)
   const corners=plan.physical.map((p,i)=>({id:planId('C',i),...mm(p),angle:interiorAngle(plan.physical,i)}))
@@ -24,10 +30,8 @@ export function installerPlan(plan:Plan,s:Settings){
     ...plan.boards.breakers.map((x,i,a)=>({id:`BR-${String(i+1).padStart(2,'0')}`,kind:'Breaker centre line',axis:joistAxis,coordinate:x*1000,spacing:i?(x-a[i-1])*1000:null})),
   ]
   const survey=pedestalHeights(plan.frame.pedestals,s,plan.frame.rule)
-  let hash=2166136261
-  for(const c of JSON.stringify({...s,quotation:undefined})){hash=Math.imul(hash^c.charCodeAt(0),16777619)>>>0}
   return {
-    reference:`BD-${hash.toString(16).toUpperCase().padStart(8,'0')}`,corners,edges,pictureFrameRows:s.pictureFrameRows??1,cornerGaps:plan.boards.fit.cornerGaps.map(r=>r.map(physical)),
+    reference:designReference(s),corners,edges,pictureFrameRows:s.pictureFrameRows??1,cornerGaps:plan.boards.fit.cornerGaps.map(r=>r.map(physical)),
     cutouts:plan.cutouts.map((h,i)=>({id:`H-${String(i+1).padStart(2,'0')}`,name:h.name,points:h.polygon.map(mm)})),
     width:Math.max(...corners.map(p=>p.x)),depth:Math.max(...corners.map(p=>p.y)),
     members:plan.frame.members.map((m,i)=>({id:planId('M',i),a:physical(m.a),b:physical(m.b),kind:m.kind,size:m.size,role:m.role,openingIndex:m.openingIndex,name:frameMemberName(m.size,m.kind,m.role),length:Math.hypot(m.b.x-m.a.x,m.b.y-m.a.y)*1000})),

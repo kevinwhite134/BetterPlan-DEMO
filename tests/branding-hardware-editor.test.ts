@@ -103,6 +103,6 @@ test('installer and quotation PDFs embed the supplied JPEG and retain registered
   assert.ok(installer.getPageCount()>1)
   const long={...p,materials:Array.from({length:45},(_,i)=>({...p.materials[i%p.materials.length],name:`Component ${i+1} · ${p.materials[i%p.materials.length].name}`}))}
   const quote=await PDFDocument.load(await exportQuotationPdf(long,DEFAULT_SETTINGS,resolvedPricing(DEFAULT_SETTINGS,{}),{logo,now}))
-  assert.match(quote.getTitle()!,/BetterDeck®/);assert.ok(quote.getPageCount()>=3)
+  assert.match(quote.getTitle()!,/BetterDeck®/);assert.ok(quote.getPageCount()>1)
   const fallback=await PDFDocument.load(await exportQuotationPdf(p,DEFAULT_SETTINGS,{}, {now}));assert.ok(fallback.getPageCount()>=1)
 })

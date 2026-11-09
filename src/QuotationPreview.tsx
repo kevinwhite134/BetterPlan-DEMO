@@ -1,14 +1,58 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { Plan, Settings } from './planner'
-import { bounds } from './planner'
+import type { QuotationEstimate } from './quotationEstimate'
 import { QUOTATION_VIEWS } from './quotationDetails'
-import { quotationEstimate } from './quotationEstimate'
-import { deckPreviewSvg, deckPreviewUrl } from './deckPreview'
+import { deckPreviewSvg, deckPreviewUrl, subframePreviewSvg } from './deckPreview'
+import { QUOTE_COLUMNS, quotationAddresses, quotationPriceGroups, quotationPriceTotals, quotationReferences, quoteMoney, quoteRate, quoteReference } from './quotationPresentation'
 
-export default function QuotationPreview({plan,settings:s,prices,onChange,compact=false}:{plan:Plan;settings:Settings;prices:Record<string,string>;onChange:(s:Settings)=>void;compact?:boolean}){
-  const quote=useMemo(()=>quotationEstimate(plan,s,prices),[plan,s,prices]),view=QUOTATION_VIEWS.find(v=>v.value===s.quotation?.view)??QUOTATION_VIEWS[0]
-  const designKey=useMemo(()=>JSON.stringify({...s,quotation:undefined}),[s])
-  const image=useMemo(()=>deckPreviewUrl(deckPreviewSvg(plan,JSON.parse(designKey),view.angle)),[plan,designKey,view.angle]),q=s.quotation??{},b=bounds(plan.physical)
-  const money=(cents:number)=>new Intl.NumberFormat('en-IE',{style:'currency',currency:'EUR'}).format(cents/100)
-  return <div className={`quote-paper-wrap ${compact?'is-compact':''}`}><article className="quote-paper" aria-label="Customer quotation cover"><header className="quote-paper-masthead"><img src="/betterdeck-logo.jpg" alt="BetterDeck® — a lifetime outdoors"/><div><span>QUOTATION</span><strong>{q.quotationNumber?.trim()||q.projectReference?.trim()||'YOUR PROPOSAL'}</strong>{q.revision?.trim()?<small>Revision {q.revision}</small>:null}</div></header><div className="quote-paper-title"><span className="quote-paper-eyebrow">DESIGNED AROUND YOU</span><h3>Your outdoor space,<br/><em>beautifully planned.</em></h3><p>{q.customerName?.trim()?<>Prepared for <strong>{q.customerName}</strong></>:'A BetterDeck proposal, made for your project.'}</p></div><figure className="quote-paper-hero"><img src={image} alt={`Quoted design in ${s.board.colourName}`}/></figure><div className="quote-paper-design"><div><span>YOUR DESIGN</span><strong>{q.deckName?.trim()||'Main deck'}{quote.sections.length>1?` + ${quote.sections.length-1} more`:''}</strong></div><div><span>DECK AREA</span><strong>{quote.sections.reduce((sum,section)=>sum+section.plan.area,0).toFixed(2)} m²</strong></div><div><span>FINISH</span><strong>{s.board.colourName}</strong></div></div><p className="quote-paper-dimensions">{Math.round(b.width*1000)} × {Math.round(b.depth*1000)} mm{q.siteAddress?.trim()?` · ${q.siteAddress}`:''}</p><div className="quote-paper-total"><div><span>{quote.totalCents===null?'QUOTATION IN PROGRESS':'YOUR PROJECT TOTAL'}</span><small>{quote.totalCents===null?'Complete pricing to confirm the total':`Including VAT · ${q.fulfilment==='collection'?'For collection':'Entered delivery included'}`}</small></div><strong>{quote.totalCents===null?'Pending':money(quote.totalCents)}</strong></div><footer className="quote-paper-footer"><span>BETTERDECK</span><span>a lifetime outdoors</span><small>Design illustration · Colours indicative · Extras itemised separately</small></footer></article><div className="quote-camera-control"><label htmlFor="quotation-camera">Choose the best angle</label><select id="quotation-camera" aria-label="Quotation 3D camera angle" value={view.value} onChange={e=>onChange({...s,quotation:{...q,view:e.target.value as typeof view.value}})}>{QUOTATION_VIEWS.map(v=><option key={v.value} value={v.value}>{v.label}</option>)}</select></div></div>
+function DeckViews({plan,settings,angle,name}:{plan:Plan;settings:Settings;angle:number;name:string}){
+  const designKey=JSON.stringify({...settings,quotation:undefined})
+  const [deck,subframe]=useMemo(()=>{
+    const design:Settings=JSON.parse(designKey)
+    return [deckPreviewSvg(plan,design,angle),subframePreviewSvg(plan,design,angle)].map(deckPreviewUrl)
+  },[plan,designKey,angle])
+  return <section className="quote-paper-views">
+    {name?<h4>{name}</h4>:null}
+    <figure><figcaption>Deck</figcaption><img src={deck} alt="3D view of the finished deck"/></figure>
+    <figure><figcaption>Subframe</figcaption><img src={subframe} alt="3D view of the deck subframe and supports"/></figure>
+  </section>
+}
+
+export default function QuotationPreview({quote,settings,onChange}:{quote:QuotationEstimate;settings:Settings;onChange:(s:Settings)=>void}){
+  const [date]=useState(()=>new Date())
+  const q=settings.quotation??{}
+  const view=QUOTATION_VIEWS.find(v=>v.value===q.view)??QUOTATION_VIEWS[0]
+  const addresses=quotationAddresses(q)
+  return <>
+    <article className="quote-paper" aria-label="Quotation">
+      <header className="quote-paper-masthead">
+        <img src="/betterdeck-logo.jpg" alt="BetterDeck"/>
+        {addresses?<p>{addresses}</p>:null}
+        <div>
+          <h3>Quotation</h3>
+          <dl>{quotationReferences(q,quoteReference(settings),date).map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+        </div>
+      </header>
+      <table className="quote-paper-prices" aria-label="Quoted items">
+        <thead><tr>{QUOTE_COLUMNS.map(label=><th scope="col" key={label}>{label}</th>)}</tr></thead>
+        {quotationPriceGroups(quote).map(group=><tbody key={group.id}>
+          {group.name?<tr><th scope="rowgroup" colSpan={4}>{group.name}</th></tr>:null}
+          {group.lines.map(line=><tr key={line.key}>
+            <td>{line.pending?'Pending':`${line.qty} ${line.unit}`}</td>
+            <td>{line.name}</td>
+            <td>{quoteRate(line.rate)}</td>
+            <td>{quoteMoney(line.cents)}</td>
+          </tr>)}
+        </tbody>)}
+      </table>
+      <dl className="quote-paper-total">{quotationPriceTotals(quote,q).map(row=><div key={row.label}><dt>{row.label}</dt><dd>{quoteMoney(row.cents)}</dd></div>)}</dl>
+      {quote.sections.map(section=><DeckViews key={section.id} plan={section.plan} settings={section.settings} angle={view.angle} name={quote.sections.length>1?section.name:''}/>)}
+    </article>
+    <div className="quote-camera-control">
+      <label htmlFor="quotation-camera">3D view angle</label>
+      <select id="quotation-camera" value={view.value} onChange={e=>onChange({...settings,quotation:{...q,view:e.target.value as typeof view.value}})}>
+        {QUOTATION_VIEWS.map(v=><option key={v.value} value={v.value}>{v.label}</option>)}
+      </select>
+    </div>
+  </>
 }

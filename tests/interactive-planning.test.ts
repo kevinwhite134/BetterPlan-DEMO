@@ -62,9 +62,9 @@ test('explosion separates tiers without moving the model and hit testing finds r
   const m=p.frame.members[0],point={x:(m.a.x+m.b.x)/2,y:(m.a.y+m.b.y)/2}
   assert.ok(pickStructure(p,s,point,'joists',false,p=>p,.01))
 })
-test('customer pack includes a cover, itemised quotation, dimensioned plan and optional installer pages',async()=>{
+test('itemised quotation supports optional installer pages and long notes',async()=>{
   const s={...DEFAULT_SETTINGS,quotation:{customerName:'Test Customer',siteAddress:'Example site',projectReference:'BD-TEST',notes:'Customer notes'}},p=planDeck(s),prices=resolvedPricing(s,{})
-  const short=await PDFDocument.load(await exportCustomerQuotePack(p,s,prices));assert.match(short.getTitle()!,/BD-TEST/);assert.ok(short.getPageCount()>=3)
+  const short=await PDFDocument.load(await exportCustomerQuotePack(p,s,prices));assert.match(short.getTitle()!,/BD-TEST/);assert.equal(short.getPageCount(),1)
   const full=await PDFDocument.load(await exportCustomerQuotePack(p,s,prices,{includeInstaller:true}));assert.ok(full.getPageCount()>short.getPageCount())
   const long=await PDFDocument.load(await exportCustomerQuotePack(p,{...s,quotation:{...s.quotation,notes:'A long note with words and newlines.\n'.repeat(150)}},prices));assert.ok(long.getPageCount()>short.getPageCount())
   const svg=customerPlanSvg(p,s);assert.match(svg,/6000 mm overall/);assert.match(svg,/<path/)

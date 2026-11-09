@@ -1,12 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { PDFDocument } from 'pdf-lib'
+import { PDFDict, PDFDocument, PDFName } from 'pdf-lib'
 import { DEFAULT_SETTINGS, planDeck, validateSettings } from '../src/planner.ts'
 import type { Settings } from '../src/planner.ts'
 import { quotationEstimate } from '../src/quotationEstimate.ts'
 import { quotationDetailsError, QUOTATION_VIEWS } from '../src/quotationDetails.ts'
 import { quotationSections } from '../src/quotationSections.ts'
-import { deckPreviewSvg } from '../src/deckPreview.ts'
+import { deckPreviewSvg, subframePreviewSvg } from '../src/deckPreview.ts'
 import { buildCsvReport, serializeCsv } from '../src/csvExport.ts'
 import { exportCustomerQuotePack } from '../src/customerQuotePack.ts'
 import { createDeckWorkbook } from '../src/workbookExport.ts'
@@ -49,11 +49,13 @@ test('unfinished numeric and unit inputs stay pending without leaking non-finite
   }
 })
 
-test('a typical customer proposal keeps its scope and next steps within three pages',async()=>{
+test('a typical quotation fits the prices, notes and two 3D images on one page',async()=>{
   const png=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN1cAAAAASUVORK5CYII=','base64'))
   const s:Settings={...DEFAULT_SETTINGS,quotation:{customerName:'Sample customer',customerAddress:'24 Sample Street\nCo. Cavan',customerEircode:'H12 AB34',scope:'A composite garden terrace with matching fascia, perimeter border and an adjustable substructure.',vatRate:23,extras:quotation.extras}}
-  const pdf=await PDFDocument.load(await exportCustomerQuotePack(plan,s,prices,{preview:png,planPreview:png}))
-  assert.equal(pdf.getPageCount(),3)
+  const pdf=await PDFDocument.load(await exportCustomerQuotePack(plan,s,prices,{sectionPreviews:[{id:'current',deck:png,subframe:png}]}))
+  assert.equal(pdf.getPageCount(),1)
+  const images=pdf.getPage(0).node.Resources()?.lookup(PDFName.of('XObject'),PDFDict)
+  assert.equal(images?.keys().length,2)
 })
 
 test('quotation snapshots round-trip without recursive project data and reject malformed inputs',()=>{
@@ -66,23 +68,27 @@ test('quotation snapshots round-trip without recursive project data and reject m
   assert.equal(JSON.stringify(settings),before)
 })
 
-test('all quotation camera choices fit the real geometry in both board directions',()=>{
+test('both quotation images follow all camera choices and board directions',()=>{
   for(const direction of ['horizontal','vertical'] as const){
-    const s={...DEFAULT_SETTINGS,direction},p=planDeck(s),images=new Set<string>()
+    const s={...DEFAULT_SETTINGS,direction},p=planDeck(s),images=new Set<string>(),frames=new Set<string>()
     for(const view of QUOTATION_VIEWS){
       const svg=deckPreviewSvg(p,s,view.angle);images.add(svg);assert.doesNotMatch(svg,/NaN|Infinity|undefined/)
+      const frame=subframePreviewSvg(p,s,view.angle);frames.add(frame)
+      assert.doesNotMatch(frame,/NaN|Infinity|undefined|fill-rule="evenodd"/)
+      assert.match(frame,/<path d="/)
       const [x,y,w,h]=svg.match(/viewBox="([^"]+)"/)![1].split(' ').map(Number)
       for(const match of svg.matchAll(/points="([^"]+)"/g))for(const pair of match[1].split(' ')){
         const [a,b]=pair.split(',').map(Number);assert.ok(a>=x-.001&&a<=x+w+.001&&b>=y-.001&&b<=y+h+.001)
       }
     }
     assert.equal(images.size,4)
+    assert.equal(frames.size,4)
   }
 })
 
-test('proposal exports all deck layouts and a clickable guide; long scope and item descriptions paginate',async()=>{
+test('quotation includes a clickable guide and paginates long scope and item descriptions',async()=>{
   const plain=await PDFDocument.load(await exportCustomerQuotePack(plan,settings,prices)),linked=await PDFDocument.load(await exportCustomerQuotePack(plan,{...settings,quotation:{...quotation,installationUrl:'https://example.com/install'}},prices))
-  assert.match(plain.getTitle()!,/BD-2026-42/);assert.ok(plain.getPageCount()>=4)
+  assert.match(plain.getTitle()!,/BD-2026-42/)
   assert.ok(linked.getPages().some(p=>(p.node.Annots()?.size()??0)>0))
   const long=await PDFDocument.load(await exportCustomerQuotePack(plan,{...settings,quotation:{...quotation,scope:'Detailed scope and exclusions.\n'.repeat(90),extras:[{id:'long',description:'A long description for additional installation work. '.repeat(6).slice(0,300),quantity:2,unit:'items',unitRate:50}]}},prices))
   assert.ok(long.getPageCount()>plain.getPageCount())

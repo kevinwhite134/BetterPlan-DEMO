@@ -6,6 +6,8 @@ import { bounds } from './planner.ts'
 import type { Plan, Point, Settings } from './planner.ts'
 import { signedArea } from './deckGeometry.ts'
 import { PEDESTAL_COLUMN_DIAMETER } from './frameHardware.ts'
+import { structurePaths } from './structureGeometry.ts'
+import type { Position3 } from './structureGeometry.ts'
 
 // A fixed-camera finished view of the actual plan, shared by the report header
 // and its Excel image. No controls or layer selection affect this snapshot.
@@ -37,6 +39,22 @@ export function deckPreviewSvg(plan:Plan,s:Settings,viewAngle=35):string{
 }
 
 export function deckPreviewUrl(svg:string){return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`}
+
+export function subframePreviewSvg(plan:Plan,s:Settings,viewAngle=35){
+  const tilt=52,angle=viewAngle*Math.PI/180,t=tilt*Math.PI/180
+  const sin=Math.sin(angle),cos=Math.cos(angle),rise=Math.sin(t),depth=Math.cos(t)
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity
+  const project=({x,y,z}:Position3)=>{
+    const p={x:x*cos-y*sin,y:(x*sin+y*cos)*depth-z*rise}
+    minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x)
+    minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y)
+    return p
+  }
+  for(const p of plan.physical)project({...p,z:0})
+  const {paths}=structurePaths(plan,s,'joists',true,viewAngle,tilt,project,16)
+  const pad=Math.max(maxX-minX,maxY-minY)*.045
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="720" height="400" viewBox="${minX-pad} ${minY-pad} ${maxX-minX+pad*2} ${maxY-minY+pad*2}">${paths.map(p=>`<path d="${p.path}" fill="${p.fill}"/>`).join('')}</svg>`
+}
 
 export async function deckPreviewPng(svg:string,width=1440,height=800):Promise<string>{
   const url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml;charset=utf-8'}))
